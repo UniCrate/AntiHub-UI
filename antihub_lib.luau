@@ -550,12 +550,29 @@ function cat:AddPreview(po)
 					else ok, uid = pcall(PL.GetUserIdFromNameAsync, PL, name) end
 					if my ~= loadId then return end
 					if not ok then warn("[avatar] " .. tostring(uid)) return end
-					local ok2, m = pcall(PL.GetCharacterAppearanceAsync, PL, uid)
-					if my ~= loadId then if ok2 and m then m:Destroy() end return end
-					if not ok2 or not m then warn("[avatar] " .. tostring(m)) return end
+					-- rig já montado: clone do seu personagem > CreateHumanoidModelFromUserId > appearance (último caso, pode vir desmontado)
+					local m
+					local lp = PL.LocalPlayer
+					if uid == lp.UserId and lp.Character then
+						local ch = lp.Character
+						local old = ch.Archivable
+						ch.Archivable = true
+						pcall(function() m = ch:Clone() end)
+						ch.Archivable = old
+					end
+					if not m then
+						local ok3, r = pcall(PL.CreateHumanoidModelFromUserId, PL, uid)
+						if ok3 and r then m = r end
+					end
+					if not m then
+						local ok2, r = pcall(PL.GetCharacterAppearanceAsync, PL, uid)
+						if ok2 and r then m = r end
+					end
+					if my ~= loadId then if m then m:Destroy() end return end
+					if not m then warn("[avatar] não consegui montar o modelo") return end
 					clear()
 					for _, d in m:GetDescendants() do
-						if d:IsA("Script") or d:IsA("LocalScript") then d:Destroy()
+						if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("Tool") or d:IsA("BillboardGui") or d:IsA("Sound") or d:IsA("ForceField") then d:Destroy()
 						elseif d:IsA("BasePart") then d.Anchored = true d.CanCollide = false end
 					end
 					local hum = m:FindFirstChildOfClass("Humanoid")
@@ -569,7 +586,8 @@ function cat:AddPreview(po)
 					hl = new("Highlight", {}, m)
 					model = m
 					refresh()
-					angle = 0
+					angle = math.pi -- começa de frente
+					model:PivotTo(CFrame.Angles(0, angle, 0))
 					spinConn = RS.RenderStepped:Connect(function(dt)
 						if not (model and model.Parent) then return end
 						angle += dt * 0.8
