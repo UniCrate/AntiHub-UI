@@ -49,8 +49,13 @@ function Lib:CreateWindow(cfg)
 	-- gui
 	local gui = Instance.new("ScreenGui")
 	gui.Name = cfg.GuiName or "antihub" gui.ResetOnSpawn = false
-	local okP = pcall(function() gui.Parent = (gethui and gethui()) or game:GetService("CoreGui") end)
-	if not okP then gui.Parent = PL.LocalPlayer:WaitForChild("PlayerGui") end
+	gui.DisplayOrder = 999
+	gui.IgnoreGuiInset = true
+	-- PlayerGui primeiro (funciona no mobile); depois gethui/CoreGui como fallback
+	local pg = PL.LocalPlayer:FindFirstChildOfClass("PlayerGui") or PL.LocalPlayer:WaitForChild("PlayerGui", 10)
+	gui.Parent = pg
+	if not gui.Parent and gethui then pcall(function() gui.Parent = gethui() end) end
+	if not gui.Parent then pcall(function() gui.Parent = game:GetService("CoreGui") end) end
 
 	local win = new("Frame", {
 		Size = UDim2.fromOffset(700, 452), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
