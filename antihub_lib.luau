@@ -444,6 +444,20 @@ function Lib:CreateWindow(cfg)
 		local btn = new("TextButton", {Text = o.Glyph or "", Font = FONTB, TextSize = 17, TextColor3 = MUTED, BackgroundTransparency = 1, AutoButtonColor = false, Size = UDim2.fromOffset(30, 30)}, win)
 		local img = new("ImageLabel", {BackgroundTransparency = 1, Size = UDim2.fromOffset(20, 20), Position = UDim2.fromOffset(5, 5), ScaleType = Enum.ScaleType.Fit, ImageColor3 = MUTED, Image = o.Icon or ""}, btn)
 		cat.btn, cat.img = btn, img
+		if o.Icon and o.Icon ~= "" then
+			-- se o asset não carregar no executor, mostra o glifo no lugar
+			-- 1) rbxassetid (Image)  2) rbxthumb do mesmo id (Decal)  3) glifo
+			local aid = string.match(o.Icon, "(%d+)")
+			task.delay(1.5, function()
+				if img.IsLoaded or not aid then return end
+				img.Image = "rbxthumb://type=Asset&id=" .. aid .. "&w=150&h=150"
+				task.delay(2, function()
+					if not img.IsLoaded then img.Visible = false btn.Text = o.Glyph or "●" btn.TextColor3 = MUTED end
+				end)
+			end)
+		else
+			img.Visible = false btn.Text = o.Glyph or "●"
+		end
 		table.insert(cats, cat)
 		for i, c in cats do c.btn.Position = UDim2.new(1, -(22 + (#cats - i + 1) * 36), 0, 14) end
 		btn.MouseButton1Click:Connect(function() selectCat(cat) end)
