@@ -414,6 +414,12 @@ function Lib:CreateWindow(cfg)
 	end
 	Win._paintCats = paintCats
 
+	local function syncPreview(cat)
+		local show = cat.right ~= nil and cat == activeCat and (cat.previewTab == nil or cat.previewTab == cat.activeTab)
+		if cat.right then cat.right.Visible = show end
+		tw(left, {Size = UDim2.fromOffset(show and 404 or 672, 336)}, 0.2)
+	end
+
 	local function selectTab(cat, tab, instant)
 		cat.activeTab = tab
 		closeDD() closePicker()
@@ -424,6 +430,7 @@ function Lib:CreateWindow(cfg)
 		end
 		hdr.Text = tab.Name
 		underline.Visible = true
+		syncPreview(cat)
 		local pos, size = UDim2.fromOffset(tab.x, 90), UDim2.fromOffset(tab.w, 3)
 		if instant then underline.Position = pos underline.Size = size else play(underline, {Position = pos, Size = size}, 0.2) end
 	end
@@ -433,10 +440,9 @@ function Lib:CreateWindow(cfg)
 		closeDD() closePicker()
 		for _, c in cats do
 			for _, t in c.tabs do t.bg.Visible = c == cat end
-			if c.right then c.right.Visible = c == cat end
+			if c.right then c.right.Visible = false end
 		end
 		paintCats()
-		tw(left, {Size = UDim2.fromOffset(cat.right and 404 or 672, 336)}, 0.2)
 		local t = cat.activeTab or cat.tabs[1]
 		if t then selectTab(cat, t, true) else
 			hdr.Text = "" underline.Visible = false
@@ -509,7 +515,7 @@ function cat:AddPreview(po)
 			local hpBar = new("Frame", {Position = UDim2.fromOffset(55, 26), Size = UDim2.fromOffset(3, 212), BackgroundColor3 = GREEN, BorderSizePixel = 0, ZIndex = 3}, view) round(hpBar, 2)
 			local distLbl = label(view, "[ 42m ]", 9, MUTED, UDim2.fromOffset(0, 266), UDim2.new(1, 0, 0, 14), CENTER, FONTB)
 			cat.right = right
-			if activeCat == cat then tw(left, {Size = UDim2.fromOffset(404, 336)}, 0.2) end
+			local function P_bind(t) cat.previewTab = t syncPreview(cat) end
 
 			local P = {s = {Boxes = true, Names = true, Health = true, Distance = false, Chams = false, ChamsOnly = false, ChamsColor = C(170, 140, 50)}}
 			local model, hl, spinConn, angle, loadId = nil, nil, nil, 0, 0
@@ -557,7 +563,7 @@ function cat:AddPreview(po)
 					m.Parent = wmodel
 					m:PivotTo(CFrame.new())
 					local cf, size = m:GetBoundingBox()
-					local dist = (size.Magnitude / 2) / math.tan(math.rad(cam.FieldOfView / 2)) * 1.05
+					local dist = (size.Y / 2) / math.tan(math.rad(cam.FieldOfView / 2)) * 1.15
 					local cy = cf.Position.Y
 					cam.CFrame = CFrame.new(Vector3.new(0, cy, dist), Vector3.new(0, cy, 0))
 					hl = new("Highlight", {}, m)
@@ -574,6 +580,7 @@ function cat:AddPreview(po)
 			end
 
 			refresh()
+			P.BindTab = function(_, t) P_bind(t) end
 			P:SetUser(po.User)
 			return P
 		end
