@@ -1,7 +1,7 @@
 -- anti hub universal UI library
 -- local Lib = loadstring(game:HttpGet("URL_RAW_DESTE_ARQUIVO"))()
 -- Win = Lib:CreateWindow{Name=, Accent=, ToggleKey=, Scale=}
--- Cat = Win:AddCategory{Name=, Icon="rbxassetid://..."}   Prev = Cat:AddPreview{Title=, User=, Thumb=}
+-- Cat = Win:AddCategory{Name=, Icon="rbxassetid://..."}   Prev = Cat:AddPreview{Title=, User=}
 -- Tab = Cat:AddTab("nome")
 -- Tab/Expand: AddToggle AddSlider AddDropdown AddButton AddLabel AddExpand
 local Lib = {}
@@ -9,6 +9,7 @@ local Lib = {}
 local UIS = game:GetService("UserInputService")
 local TS = game:GetService("TweenService")
 local PL = game:GetService("Players")
+local RS = game:GetService("RunService")
 
 local function C(r, g, b) return Color3.fromRGB(r, g, b) end
 local W, BG, PANEL, ROW, ROW2, LINE, DIM, MUTED = C(255,255,255), C(13,14,18), C(18,19,24), C(24,25,31), C(30,31,39), C(38,40,48), C(150,155,168), C(100,105,118)
@@ -42,6 +43,7 @@ function Lib:CreateWindow(cfg)
 	local KEY = cfg.ToggleKey or Enum.KeyCode.RightShift
 	local Win = {Flags = {}, Notifications = true}
 	local accentEls, conns, cats, activeCat = {}, {}, {}, nil
+	Win._extraConns = {}
 	local function track(sig, f) local c = sig:Connect(f) table.insert(conns, c) return c end
 
 	-- gui
@@ -470,7 +472,7 @@ function Lib:CreateWindow(cfg)
 			return tab
 		end
 
-		function cat:AddPreview(po)
+function cat:AddPreview(po)
 			po = po or {}
 			local right = new("Frame", {Position = UDim2.fromOffset(428, 104), Size = UDim2.fromOffset(258, 336), BackgroundColor3 = PANEL, BorderSizePixel = 0, Visible = activeCat == cat}, win) round(right, 10) stroke(right, LINE, 1)
 			local rTitle = label(right, po.Title or "ESP preview", 11, ACC, UDim2.fromOffset(16, 10), UDim2.fromOffset(200, 16), LEFT, FONTB)
@@ -478,7 +480,11 @@ function Lib:CreateWindow(cfg)
 			new("Frame", {Position = UDim2.fromOffset(16, 32), Size = UDim2.new(1, -32, 0, 1), BackgroundColor3 = LINE, BorderSizePixel = 0}, right)
 			local view = new("Frame", {Position = UDim2.fromOffset(12, 42), Size = UDim2.fromOffset(234, 282), BackgroundTransparency = 1}, right)
 			local nameLbl = label(view, "", 10, W, UDim2.new(), UDim2.new(1, 0, 0, 14), CENTER, FONTB)
-			local avatar = new("ImageLabel", {Position = UDim2.fromOffset(7, 18), Size = UDim2.fromOffset(220, 244), BackgroundTransparency = 1, BorderSizePixel = 0, Image = "", ScaleType = Enum.ScaleType.Fit}, view)
+			-- avatar 3D real: ViewportFrame + clone do personagem, gira sozinho
+			local vpf = new("ViewportFrame", {Position = UDim2.fromOffset(7, 18), Size = UDim2.fromOffset(220, 244), BackgroundTransparency = 1, BorderSizePixel = 0, Ambient = C(200, 200, 200), LightColor = W, LightDirection = Vector3.new(-1, -1, -1)}, view)
+			local wmodel = new("WorldModel", {}, vpf)
+			local cam = new("Camera", {FieldOfView = 30}, vpf)
+			vpf.CurrentCamera = cam
 			local box = new("Frame", {Position = UDim2.fromOffset(62, 26), Size = UDim2.fromOffset(110, 212), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 3}, view) stroke(box, W, 1)
 			local hpBar = new("Frame", {Position = UDim2.fromOffset(55, 26), Size = UDim2.fromOffset(3, 212), BackgroundColor3 = GREEN, BorderSizePixel = 0, ZIndex = 3}, view) round(hpBar, 2)
 			local distLbl = label(view, "[ 42m ]", 9, MUTED, UDim2.fromOffset(0, 266), UDim2.new(1, 0, 0, 14), CENTER, FONTB)
@@ -486,14 +492,27 @@ function Lib:CreateWindow(cfg)
 			if activeCat == cat then tw(left, {Size = UDim2.fromOffset(404, 336)}, 0.2) end
 
 			local P = {s = {Boxes = true, Names = true, Health = true, Distance = false, Chams = false, ChamsOnly = false, ChamsColor = C(170, 140, 50)}}
+			local model, hl, spinConn, angle, loadId = nil, nil, nil, 0, 0
+
 			local function refresh()
 				box.Visible, nameLbl.Visible, hpBar.Visible, distLbl.Visible = P.s.Boxes, P.s.Names, P.s.Health, P.s.Distance
-				avatar.ImageColor3 = P.s.Chams and W:Lerp(P.s.ChamsColor, 0.5) or W
-				avatar.ImageTransparency = (P.s.Chams and P.s.ChamsOnly) and 0.6 or 0
+				if hl then
+					hl.Enabled = P.s.Chams
+					hl.FillColor = P.s.ChamsColor
+					hl.OutlineColor = P.s.ChamsColor
+					hl.FillTransparency = P.s.ChamsOnly and 0.75 or 0.4
+					hl.DepthMode = P.s.ChamsOnly and Enum.HighlightDepthMode.Occluded or Enum.HighlightDepthMode.AlwaysOnTop
+				end
 			end
-			function P:Set(k, v) P.s[k] = v refresh() end -- Boxes Names Health Distance Chams ChamsOnly ChamsColor
-			local loadId = 0
-			function P:SetUser(name, thumb)
+			-- Boxes Names Health Distance Chams ChamsOnly ChamsColor
+			function P:Set(k, v) P.s[k] = v refresh() end
+
+			local function clear()
+				if spinConn then spinConn:Disconnect() spinConn = nil end
+				if model then model:Destroy() model, hl = nil, nil end
+			end
+
+			function P:SetUser(name)
 				name = string.gsub(tostring(name or ""), "%s+", "")
 				if name == "" then return end
 				loadId += 1
@@ -503,14 +522,39 @@ function Lib:CreateWindow(cfg)
 					local ok, uid = pcall(PL.GetUserIdFromNameAsync, PL, name)
 					if my ~= loadId then return end
 					if not ok then warn("[avatar] " .. tostring(uid)) return end
-					avatar.Image = "rbxthumb://type=" .. (thumb or po.Thumb or "Avatar") .. "&id=" .. string.format("%d", uid) .. "&w=420&h=420"
+					local ok2, m = pcall(PL.GetCharacterAppearanceAsync, PL, uid)
+					if my ~= loadId then if ok2 and m then m:Destroy() end return end
+					if not ok2 or not m then warn("[avatar] " .. tostring(m)) return end
+					clear()
+					for _, d in m:GetDescendants() do
+						if d:IsA("Script") or d:IsA("LocalScript") then d:Destroy()
+						elseif d:IsA("BasePart") then d.Anchored = true d.CanCollide = false end
+					end
+					local hum = m:FindFirstChildOfClass("Humanoid")
+					if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+					m.Parent = wmodel
+					m:PivotTo(CFrame.new())
+					local cf, size = m:GetBoundingBox()
+					local dist = (size.Magnitude / 2) / math.tan(math.rad(cam.FieldOfView / 2)) * 1.05
+					local cy = cf.Position.Y
+					cam.CFrame = CFrame.new(Vector3.new(0, cy, dist), Vector3.new(0, cy, 0))
+					hl = new("Highlight", {}, m)
+					model = m
+					refresh()
+					angle = 0
+					spinConn = RS.RenderStepped:Connect(function(dt)
+						if not (model and model.Parent) then return end
+						angle += dt * 0.8
+						model:PivotTo(CFrame.Angles(0, angle, 0))
+					end)
+					table.insert(Win._extraConns, spinConn)
 				end)
 			end
+
 			refresh()
 			if po.User then P:SetUser(po.User) end
 			return P
 		end
-
 		return cat
 	end
 
@@ -563,6 +607,7 @@ function Lib:CreateWindow(cfg)
 
 	function Win:Destroy()
 		for _, c in conns do c:Disconnect() end
+		for _, c in Win._extraConns do c:Disconnect() end
 		table.clear(conns)
 		gui:Destroy()
 	end
