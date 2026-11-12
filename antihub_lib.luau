@@ -534,12 +534,14 @@ function cat:AddPreview(po)
 
 			function P:SetUser(name)
 				name = string.gsub(tostring(name or ""), "%s+", "")
-				if name == "" then return end
+				if name == "" then name = PL.LocalPlayer.Name end
 				loadId += 1
 				local my = loadId
 				nameLbl.Text = name
 				task.spawn(function()
-					local ok, uid = pcall(PL.GetUserIdFromNameAsync, PL, name)
+					local ok, uid
+					if name == PL.LocalPlayer.Name then ok, uid = true, PL.LocalPlayer.UserId
+					else ok, uid = pcall(PL.GetUserIdFromNameAsync, PL, name) end
 					if my ~= loadId then return end
 					if not ok then warn("[avatar] " .. tostring(uid)) return end
 					local ok2, m = pcall(PL.GetCharacterAppearanceAsync, PL, uid)
@@ -572,7 +574,7 @@ function cat:AddPreview(po)
 			end
 
 			refresh()
-			if po.User then P:SetUser(po.User) end
+			P:SetUser(po.User)
 			return P
 		end
 		return cat
